@@ -17,9 +17,10 @@ async function postJson(path: string, body: unknown): Promise<WakuEvent> {
   }
 
   if (!res.ok) {
+    const payload = parsed as Record<string, unknown> | null;
     const message =
-      (parsed && typeof parsed === "object" && "message" in parsed
-        ? String((parsed as Record<string, unknown>).message)
+      (payload && typeof payload["message"] === "string"
+        ? (payload["message"] as string)
         : text) || `Request failed (${res.status})`;
     throw new Error(message);
   }
@@ -63,9 +64,9 @@ export function saveNit(
 }
 
 export interface UploadResult {
-  file_id?: string;
-  status?: string;
-  message?: string;
+  file_id?: string | undefined;
+  status?: string | undefined;
+  message?: string | undefined;
   raw: unknown;
 }
 
@@ -97,21 +98,18 @@ export function uploadFile(
         parsed = {};
       }
       if (xhr.status >= 200 && xhr.status < 300) {
+        const pick = (k: string): string | undefined =>
+          typeof parsed[k] === "string" ? (parsed[k] as string) : undefined;
         resolve({
-          file_id:
-            typeof parsed.file_id === "string"
-              ? parsed.file_id
-              : typeof parsed.id === "string"
-                ? parsed.id
-                : undefined,
-          status: typeof parsed.status === "string" ? parsed.status : undefined,
-          message: typeof parsed.message === "string" ? parsed.message : undefined,
+          file_id: pick("file_id") ?? pick("id"),
+          status: pick("status"),
+          message: pick("message"),
           raw: parsed,
         });
       } else {
         reject(
           new Error(
-            (typeof parsed.message === "string" && parsed.message) ||
+            (typeof parsed["message"] === "string" && (parsed["message"] as string)) ||
               `Upload failed (${xhr.status})`,
           ),
         );

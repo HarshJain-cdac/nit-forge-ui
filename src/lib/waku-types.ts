@@ -59,10 +59,10 @@ export interface UploadedFileInfo {
   type: string;
   size: number;
   /** Reference returned by the backend, submitted as the field answer. */
-  file_id?: string;
+  file_id?: string | undefined;
   status: "uploading" | "processing" | "verified" | "failed";
   progress: number;
-  message?: string;
+  message?: string | undefined;
 }
 
 /** Normalizes the many envelope shapes a backend may use into a WakuEvent. */
@@ -73,58 +73,60 @@ export function normalizeEvent(raw: unknown): WakuEvent {
   const obj = raw as Record<string, unknown>;
 
   // Envelope: { event: "ask_field", data: {...} }
+  const data = obj["data"];
   const inner =
-    obj.data && typeof obj.data === "object"
-      ? { ...(obj.data as Record<string, unknown>) }
-      : {};
-  const merged: Record<string, unknown> = { ...inner, ...obj };
-  delete merged.data;
+    data && typeof data === "object" ? { ...(data as Record<string, unknown>) } : {};
+  const m: Record<string, unknown> = { ...inner, ...obj };
+  delete m["data"];
 
-  const name = typeof merged.event === "string" ? merged.event : undefined;
+  const str = (k: string, fallback = "") =>
+    typeof m[k] === "string" ? (m[k] as string) : fallback;
+  const list = (k: string): string[] =>
+    Array.isArray(m[k]) ? (m[k] as string[]) : [];
+  const record = (k: string): Record<string, unknown> =>
+    m[k] && typeof m[k] === "object" ? (m[k] as Record<string, unknown>) : {};
 
-  if (name === "ask_field" || (!name && typeof merged.key === "string" && merged.type)) {
+  const name = typeof m["event"] === "string" ? (m["event"] as string) : undefined;
+
+  if (name === "ask_field" || (!name && typeof m["key"] === "string" && !!m["type"])) {
     return {
       event: "ask_field",
-      key: String(merged.key ?? ""),
-      question: String(merged.question ?? ""),
-      type: (merged.type as FieldType) ?? "text",
-      options: Array.isArray(merged.options) ? (merged.options as string[]) : [],
-      mandatory: Boolean(merged.mandatory),
+      key: str("key"),
+      question: str("question"),
+      type: (str("type", "text") as FieldType),
+      options: list("options"),
+      mandatory: Boolean(m["mandatory"]),
     };
   }
 
-  if (name === "ask_options" || (!name && typeof merged.question === "string")) {
-    return {
-      event: "ask_options",
-      question: String(merged.question ?? ""),
-      options: Array.isArray(merged.options) ? (merged.options as string[]) : [],
-    };
+  if (name === "ask_options" || (!name && typeof m["question"] === "string")) {
+    return { event: "ask_options", question: str("question"), options: list("options") };
   }
 
   if (name === "flow_complete") {
     return {
       event: "flow_complete",
-      flow: String(merged.flow ?? ""),
-      answers: (merged.answers as Record<string, unknown>) ?? {},
-      actions: Array.isArray(merged.actions) ? (merged.actions as string[]) : [],
+      flow: str("flow"),
+      answers: record("answers"),
+      actions: list("actions"),
     };
   }
 
   if (name === "nit_updated") {
     return {
       event: "nit_updated",
-      session_id: String(merged.session_id ?? ""),
-      fields: (merged.fields as Record<string, unknown>) ?? {},
-      annexure_items: Array.isArray(merged.annexure_items) ? merged.annexure_items : [],
+      session_id: str("session_id"),
+      fields: record("fields"),
+      annexure_items: Array.isArray(m["annexure_items"]) ? (m["annexure_items"] as unknown[]) : [],
     };
   }
 
   if (name === "error") {
-    return { event: "error", message: String(merged.message ?? "Something went wrong.") };
+    return { event: "error", message: str("message", "Something went wrong.") };
   }
 
-  if (typeof merged.message === "string") {
-    return { event: "message", message: merged.message };
+  if (typeof m["message"] === "string") {
+    return { event: "message", message: m["message"] as string };
   }
 
   return { event: "error", message: "Unrecognised response from Waku." };
