@@ -26,8 +26,16 @@ async function postJson(path: string, body: unknown): Promise<WakuResponse> {
     const message =
       (payload && typeof payload["message"] === "string"
         ? (payload["message"] as string)
-        : text) || `Request failed (${res.status})`;
+        : parsed
+          ? text
+          : `Request failed (${res.status})`) || `Request failed (${res.status})`;
     throw new Error(message);
+  }
+
+  if (parsed === null) {
+    throw new Error(
+      `The backend did not return JSON for ${path}. Check that your backend URL in src/config.ts is correct and that this endpoint exists.`,
+    );
   }
 
   const payload = (parsed ?? {}) as Record<string, unknown>;
