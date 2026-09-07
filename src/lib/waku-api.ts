@@ -1,7 +1,12 @@
 import { API_ENDPOINTS, apiUrl } from "@/config";
 import { normalizeEvent, type WakuEvent } from "@/lib/waku-types";
 
-async function postJson(path: string, body: unknown): Promise<WakuEvent> {
+export interface WakuResponse {
+  event: WakuEvent;
+  sessionId: string | null;
+}
+
+async function postJson(path: string, body: unknown): Promise<WakuResponse> {
   const res = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,7 +30,19 @@ async function postJson(path: string, body: unknown): Promise<WakuEvent> {
     throw new Error(message);
   }
 
-  return normalizeEvent(parsed);
+  const payload = (parsed ?? {}) as Record<string, unknown>;
+  const nested =
+    payload["data"] && typeof payload["data"] === "object"
+      ? (payload["data"] as Record<string, unknown>)
+      : {};
+  const sessionId =
+    typeof payload["session_id"] === "string"
+      ? (payload["session_id"] as string)
+      : typeof nested["session_id"] === "string"
+        ? (nested["session_id"] as string)
+        : null;
+
+  return { event: normalizeEvent(parsed), sessionId };
 }
 
 export function sendMessage(sessionId: string | null, message: string) {
