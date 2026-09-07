@@ -71,7 +71,7 @@ export function AiEditPanel({ sessionId, onNitUpdated, onClose }: AiEditPanelPro
     setBusy(true);
 
     try {
-      const event = await sendNitChat(sessionId, text, fileId);
+      const { event } = await sendNitChat(sessionId, text, fileId);
       if (event.event === "nit_updated") {
         onNitUpdated(event);
         push({ id: crypto.randomUUID(), role: "waku", text: "The document has been updated." });
