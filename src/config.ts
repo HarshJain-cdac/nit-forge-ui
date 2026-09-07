@@ -1,5 +1,11 @@
-// Paste your Waku backend URL here
-const API_BASE = import.meta.env['VITE_API_BASE'] || "";
+// Paste your Waku backend URL here (e.g. "https://api.example.com").
+// It must be an absolute URL — a relative value makes requests hit this app instead.
+const FALLBACK_API_BASE = "";
+
+const RAW_API_BASE = (import.meta.env['VITE_API_BASE'] || FALLBACK_API_BASE || "").trim();
+
+/** Backend origin without a trailing slash. */
+const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
 export { API_BASE };
 
