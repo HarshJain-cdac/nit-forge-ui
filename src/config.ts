@@ -15,17 +15,19 @@ export { API_BASE };
  */
 export const API_ENDPOINTS = {
   /** Starts a session / sends a free-form user message. Returns a Waku event. */
-  chat: "/chat",
+  chat: "/api/chat",
   /** Answers a wizard field (ask_field) or a clarification (ask_options). */
-  answer: "/answer",
+  answer: "/api/answer",
   /** Multipart file upload for `file` type questions. */
-  upload: "/upload",
+  upload: "/api/nit/upload",
   /** Runs one of the actions returned by flow_complete. */
-  action: "/action",
+  action: "/api/action",
   /** Natural-language edits against a generated NiT (AI Edit chatbot). */
-  nitChat: "/nit/chat",
+  nitChat: "/api/chat/stream",
   /** Persists manual edits made in the document editor. */
-  nitUpdate: "/nit/update",
+  nitUpdate: "/api/nit/update",
+  /** Loads an existing generated NiT document. */
+  nit: "/api/nit",
 } as const;
 
 export function apiUrl(path: string): string {
