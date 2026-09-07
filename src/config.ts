@@ -29,5 +29,15 @@ export const API_ENDPOINTS = {
 } as const;
 
 export function apiUrl(path: string): string {
+  if (!API_BASE) {
+    throw new Error(
+      "Backend URL is not set. Add your Waku backend URL in src/config.ts (or set VITE_API_BASE).",
+    );
+  }
+  if (!/^https?:\/\//i.test(API_BASE)) {
+    throw new Error(
+      `Backend URL "${API_BASE}" is invalid — it must start with http:// or https://.`,
+    );
+  }
   return `${API_BASE}${path}`;
 }
