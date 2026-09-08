@@ -152,6 +152,11 @@ export function normalizeEvent(raw: unknown): WakuEvent {
     return { event: "error", message: str("message", "Something went wrong.") };
   }
 
+  // A normal assistant reply: { reply: "...", session_id: "...", ... }
+  if (typeof m["reply"] === "string" && m["reply"].trim()) {
+    return { event: "message", message: m["reply"] as string };
+  }
+
   if (typeof m["message"] === "string") {
     return { event: "message", message: m["message"] as string };
   }
