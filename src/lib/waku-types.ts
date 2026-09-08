@@ -113,7 +113,7 @@ export function normalizeEvent(raw: unknown): WakuEvent {
   const record = (k: string): Record<string, unknown> =>
     m[k] && typeof m[k] === "object" ? (m[k] as Record<string, unknown>) : {};
 
-  const name = typeof m["event"] === "string" ? (m["event"] as string) : undefined;
+  
 
   if (name === "ask_field" || (!name && typeof m["key"] === "string" && !!m["type"])) {
     return {
