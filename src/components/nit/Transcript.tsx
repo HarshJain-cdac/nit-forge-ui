@@ -1,5 +1,8 @@
 import { Pencil } from "lucide-react";
 
+import { Markdown } from "@/components/nit/Markdown";
+
+
 export interface TranscriptEntry {
   id: string;
   role: "user" | "waku";
@@ -38,10 +41,12 @@ export function Transcript({ entries, editableIds = [], onEdit }: TranscriptProp
           </div>
         ) : (
           <div key={entry.id} className="flex">
-            <p className="max-w-[85%] whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-              {entry.text}
-            </p>
+            <Markdown
+              text={entry.text}
+              className="max-w-[85%] text-sm leading-relaxed text-muted-foreground"
+            />
           </div>
+
         ),
       )}
     </div>
