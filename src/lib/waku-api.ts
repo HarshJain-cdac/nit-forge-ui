@@ -68,12 +68,86 @@ export function sendAction(sessionId: string | null, action: string) {
   return postJson(API_ENDPOINTS.action, { session_id: sessionId, action });
 }
 
-export function sendNitChat(sessionId: string | null, message: string, fileId?: string) {
-  return postJson(API_ENDPOINTS.nitChat, {
-    session_id: sessionId,
-    message,
-    ...(fileId ? { file_id: fileId } : {}),
+/**
+ * Sends a message to the streaming endpoint (SSE) and resolves with the
+ * final meaningful Waku event: a structured payload (ask_field, ask_options,
+ * flow_complete, nit_updated) if one arrives, otherwise the accumulated
+ * assistant reply from the "done" event.
+ */
+export async function sendNitChat(
+  sessionId: string | null,
+  message: string,
+  fileId?: string,
+): Promise<WakuResponse> {
+  const res = await fetch(apiUrl(API_ENDPOINTS.nitChat), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: sessionId,
+      message,
+      ...(fileId ? { file_id: fileId } : {}),
+    }),
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Request failed (${res.status})`);
+  }
+  if (!res.body) {
+    throw new Error("The backend returned an empty response.");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let reply = "";
+  let resolvedSessionId: string | null = null;
+  let structured: WakuEvent | null = null;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE events are separated by blank lines.
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() ?? "";
+
+    for (const chunk of events) {
+      for (const line of chunk.split(/\r?\n/)) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(payload) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        const kind = typeof parsed["kind"] === "string" ? (parsed["kind"] as string) : "";
+        if (kind === "text") {
+          if (typeof parsed["delta"] === "string") reply += parsed["delta"];
+        } else if (kind === "ask_field" || kind === "ask_options" || kind === "flow_complete" || kind === "nit_updated") {
+          structured = normalizeEvent({ ...parsed, event: kind });
+        } else if (kind === "done") {
+          if (typeof parsed["reply"] === "string" && parsed["reply"]) {
+            reply = parsed["reply"] as string;
+          }
+          if (typeof parsed["session_id"] === "string") {
+            resolvedSessionId = parsed["session_id"] as string;
+          }
+        }
+      }
+    }
+  }
+
+  if (structured) {
+    return { event: structured, sessionId: resolvedSessionId };
+  }
+  if (reply.trim()) {
+    return { event: { event: "message", message: reply }, sessionId: resolvedSessionId };
+  }
+  return { event: { event: "error", message: "Empty response from Waku." }, sessionId: resolvedSessionId };
 }
 
 export function saveNit(
