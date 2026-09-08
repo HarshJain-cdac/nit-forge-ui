@@ -254,92 +254,153 @@ function NitApp() {
 
   /* ------------------------------ Q&A stage ------------------------------ */
 
-  return (
-    <div className="brand-gradient min-h-screen">
-      <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-10 sm:px-6">
-        {!started ? (
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-primary">
-              Waku
-            </span>
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Create a Notice Inviting Tender
-            </h1>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-              Start a conversation and Waku will guide you question by question, then draft the
-              document for you.
-            </p>
+  const userEntryIds = transcript.filter((e) => e.role === "user").map((e) => e.id);
+  const editableIds = userEntryIds.slice(-2);
 
-            <div className="mt-8 w-full">
-              <div className="surface-card p-2">
-                <Textarea
-                  rows={3}
-                  autoFocus
-                  value={starter}
-                  placeholder="Say hello, or describe what you need…"
-                  onChange={(e) => setStarter(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void start(starter);
-                    }
-                  }}
-                  className="min-h-0 resize-none border-0 bg-transparent p-3 text-base shadow-none focus-visible:ring-0"
+  function beginEdit(id: string, text: string) {
+    setEditingId(id);
+    setStarter(text);
+  }
+
+  async function submitComposer() {
+    const text = starter.trim();
+    if (!text || busy) return;
+
+    if (editingId) {
+      const index = transcript.findIndex((e) => e.id === editingId);
+      const kept = index >= 0 ? transcript.slice(0, index) : transcript;
+      setTranscript([...kept, { id: crypto.randomUUID(), role: "user", text }]);
+      setEditingId(null);
+      setStarter("");
+      setQuestion(null);
+      setFlow(null);
+      await run(() => sendMessage(sessionId, text));
+      return;
+    }
+
+    setStarter("");
+    if (!started) {
+      await start(text);
+      return;
+    }
+    if (question) {
+      await answer(text);
+      return;
+    }
+    addEntry("user", text);
+    await run(() => sendMessage(sessionId, text));
+  }
+
+  return (
+    <div className="brand-gradient flex h-screen flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+          {!started ? (
+            <div className="flex flex-col items-center py-16 text-center">
+              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-primary">
+                Waku
+              </span>
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                Create a Notice Inviting Tender
+              </h1>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+                Start a conversation and Waku will guide you question by question, then draft the
+                document for you.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <Transcript entries={transcript} editableIds={editableIds} onEdit={beginEdit} />
+
+              {question && (
+                <QuestionCard
+                  question={question}
+                  sessionId={sessionId}
+                  busy={busy}
+                  onSubmit={(value) => void answer(value)}
                 />
-                <div className="flex justify-end p-1">
-                  <Button disabled={!starter.trim() || busy} onClick={() => void start(starter)}>
-                    {busy ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                    Start
-                  </Button>
-                </div>
-              </div>
-              {error && (
-                <p className="mt-3 flex items-center justify-center gap-2 text-sm text-destructive">
-                  <AlertCircle className="size-4" /> {error}
+              )}
+
+              {flow && <FlowSummary data={flow} busy={busy} onAction={(a) => void act(a)} />}
+
+              {busy && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin text-primary" /> Waku is thinking…
                 </p>
               )}
             </div>
-          </div>
-        ) : (
-          <div className="flex-1 space-y-6 py-4">
-            <Transcript entries={transcript} />
+          )}
 
-            {question && (
-              <QuestionCard
-                question={question}
-                sessionId={sessionId}
-                busy={busy}
-                onSubmit={(value) => void answer(value)}
-              />
-            )}
-
-            {flow && <FlowSummary data={flow} busy={busy} onAction={(a) => void act(a)} />}
-
-            {busy && !question && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin text-primary" /> Waku is thinking…
-              </p>
-            )}
-
-            {error && (
-              <div className="flex items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <div>
-                  <p>{error}</p>
-                  <button
-                    type="button"
-                    className="mt-1 underline underline-offset-4"
-                    onClick={() => setError(null)}
-                  >
-                    Dismiss
-                  </button>
-                </div>
+          {error && (
+            <div className="mt-6 flex items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <p>{error}</p>
+                <button
+                  type="button"
+                  className="mt-1 underline underline-offset-4"
+                  onClick={() => setError(null)}
+                >
+                  Dismiss
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
-            <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur">
+        <div className="mx-auto w-full max-w-2xl px-4 py-4 sm:px-6">
+          {editingId && (
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-border bg-brand-softer px-3 py-2 text-xs text-muted-foreground">
+              <span>Editing your earlier message — sending will replace it.</span>
+              <button
+                type="button"
+                className="underline underline-offset-4 hover:text-foreground"
+                onClick={() => {
+                  setEditingId(null);
+                  setStarter("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          <div className="surface-card p-2">
+            <Textarea
+              rows={2}
+              autoFocus
+              value={starter}
+              placeholder={
+                started ? "Type your reply…" : "Say hello, or describe what you need…"
+              }
+              onChange={(e) => setStarter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void submitComposer();
+                }
+              }}
+              className="min-h-0 resize-none border-0 bg-transparent p-3 text-base shadow-none focus-visible:ring-0"
+            />
+            <div className="flex justify-end p-1">
+              <Button
+                disabled={!starter.trim() || busy}
+                onClick={() => void submitComposer()}
+                aria-label="Send message"
+              >
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="size-4" />
+                )}
+                {started ? "Send" : "Start"}
+              </Button>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
