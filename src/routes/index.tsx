@@ -63,6 +63,7 @@ function NitApp() {
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [starter, setStarter] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
