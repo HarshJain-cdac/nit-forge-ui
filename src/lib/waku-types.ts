@@ -72,11 +72,38 @@ export function normalizeEvent(raw: unknown): WakuEvent {
   }
   const obj = raw as Record<string, unknown>;
 
-  // Envelope: { event: "ask_field", data: {...} }
-  const data = obj["data"];
-  const inner =
-    data && typeof data === "object" ? { ...(data as Record<string, unknown>) } : {};
-  const m: Record<string, unknown> = { ...inner, ...obj };
+  const asRecord = (v: unknown): Record<string, unknown> =>
+    v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+
+  // The Waku backend returns a flat object like:
+  //   { reply, session_id, ask_field?: {...}, ask_options?: {...}, flow_complete?: {...} }
+  // Merge any of those nested payloads (and a legacy {data: {...}} envelope)
+  // into one flat map, remembering which kind of payload was present.
+  const KNOWN = ["ask_field", "ask_options", "flow_complete", "nit_updated"] as const;
+  const m: Record<string, unknown> = { ...obj };
+  let name = typeof obj["event"] === "string" ? (obj["event"] as string) : undefined;
+
+  for (const k of KNOWN) {
+    const nested = asRecord(obj[k]);
+    if (Object.keys(nested).length > 0) {
+      Object.assign(m, nested);
+      if (!name) name = k;
+    }
+    delete m[k];
+  }
+
+  const data = asRecord(obj["data"]);
+  if (Object.keys(data).length > 0) {
+    Object.assign(m, data);
+    for (const k of KNOWN) {
+      const nested = asRecord(data[k]);
+      if (Object.keys(nested).length > 0) {
+        Object.assign(m, nested);
+        if (!name) name = k;
+      }
+      delete m[k];
+    }
+  }
   delete m["data"];
 
   const str = (k: string, fallback = "") =>
